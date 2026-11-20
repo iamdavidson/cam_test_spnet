@@ -1,0 +1,15 @@
+# Paths are relative to the repository root, except sensor_config (relative to this file).
+sensor_config: config.yaml
+bag_path: null                  # Set to the corrected MCAP on the GPU server.
+match_csv: sync_matches.csv
+match_id: 130                   # Use the match_id column, which starts at 1.
+model: Tiny                     # Tiny, Small, Base, Large
+checkpoint: null                # Defaults to checkpoints/<model>_300.pth.
+spnet_checkout: .deps/SPNet
+gpu: 0                          # CUDA device index after CUDA_VISIBLE_DEVICES.
+resolution_wh: [512, 288]       # Both dimensions must be multiples of 32.
+max_depth_m: 100.0               # Outdoor SPNet normalization scale and export range.
+virtual_stride: 2               # Sample every Nth pixel per axis where LiDAR is absent.
+warmup: 5                       # Additional passes per camera after its first pass.
+iterations: 20                   # Timed passes per camera, batch size 1.
+runs_dir: runs

@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.venv*/
+.deps/
+checkpoints/
+runs/
+*.pth
+*.pt
+*.mcap
+*.rrd
+*.bundle
+config/spnet.server.yaml

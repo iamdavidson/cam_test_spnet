@@ -1,0 +1,31 @@
+bag_path: /home/karnelius/datasets/compressed/rosbag2_2026_05_12-16_58_33_0_corrected.mcap
+
+topics:
+  lidar: /velodyne_points
+  left: /camera_left/image_raw/compressed
+  right: /camera_right/image_raw/compressed
+
+sync:
+  slop: 0.09          # seconds: maximum spread of the matched timestamps
+  queue_size: 100
+
+output:
+  csv: sync_matches.csv
+  rrd: null           # e.g. sync_analysis.rrd for headless capture instead of viewer
+  log_raw_events: true
+  log_matched_events: true
+
+# Run: python3 visualize_match.py --config config/config.yaml
+visualization:
+  match_id: 130                 # From sync_matches.csv
+  camera_info_topics:
+    left: /camera_left/camera_info
+    right: /camera_right/camera_info
+  platform_frame: base_link   # Heading reference (+X forward, +Z up) for geometry report
+  fixed_frame: null           # Prefer odom or map if dynamic /tf exists and is accurate
+  tf_max_age_ms: 5          # Nearest dynamic TF allowed; no interpolation
+  max_lidar_points: 140000
+  max_projection_depth_m: 100.0
+  overlay_radius_px: 10.0
+  image_plane_distance_m: 1.0
+  rrd: null                   # e.g. selected_match.rrd for headless recording
