@@ -319,10 +319,9 @@ def main():
               flush=True)
         results, metrics = benchmark(scene, yolo_model, spnet_model, boxer_model, config, profiler)
 
-        stamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-        directory = ROOT / Path(settings['runs_dir']).expanduser() / (
-            f"{stamp}_detection_match{settings['match_id']}_{uuid4().hex[:8]}"
-        )
+        now = datetime.now(timezone.utc)
+        run_name = f"{now:%H-%M-%S}_detection_match{settings['match_id']}_{now:%Y-%m-%d}_{uuid4().hex[:8]}"
+        directory = ROOT / Path(settings['runs_dir']).expanduser() / run_name
         directory.mkdir(parents=True)
         with profiler.measure() as (_, export_metrics):
             write_scene(directory / 'scene.rrd', scene, results, config['spnet']['max_depth_m'])

@@ -297,8 +297,9 @@ def main():
             model, camera, cloud, lidar_pose,
             (height, width, max_depth, stride, warmup, iterations), device
         )
-    run_id = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')
-    directory = path(cfg['runs_dir']) / f'{run_id}_{variant}_{width}x{height}_match{match_id}_{uuid4().hex[:8]}'
+    now = datetime.now(timezone.utc)
+    run_name = f'{now:%H-%M-%S}_{variant}_{width}x{height}_match{match_id}_{now:%Y-%m-%d}_{uuid4().hex[:8]}'
+    directory = path(cfg['runs_dir']) / run_name
     directory.mkdir(parents=True)
     checkpoint_sha256 = file_sha256(checkpoint)
     start = perf_counter()

@@ -48,7 +48,7 @@ Run the installer again when changing to a variant whose checkpoint is missing.
 
 ## 3. Copy and inspect the results
 
-Each invocation saves a new folder under `runs/` and prints its full path. From your local computer, substitute the printed run directory name:
+Each invocation saves a new folder under `runs/` and prints its full path. Names start with the UTC time, for example `20-43-39_Tiny_512x288_match130_2026-11-20_65c5df33`. To rename existing directories on the server, preview with `bash scripts/rename_runs.sh --dry-run runs` and apply with `bash scripts/rename_runs.sh runs`. From your local computer, substitute the printed run directory name:
 
 ```bash
 mkdir -p runs
