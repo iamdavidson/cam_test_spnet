@@ -57,12 +57,12 @@ python report_printer.py ~/Downloads/log.log
 ```
 
 - **Wall time** includes CPU work and a CUDA synchronization at each method boundary. Internal CUDA timings measure CUDA stream elapsed time. Ultralytics reports its own preprocessing, inference, and postprocessing times.
-- **CPU** is the process CPU time spent during the pass or stage. 100% means one full core on average, so CPU usage can exceed 100%.
-- **Extra RAM** is the largest sampled increase in process resident memory (RSS) above the start of the pass or stage. If the allocator reuses already resident memory, this increase can be zero. `pipeline.resource_sample_ms` controls how often the probe samples RSS.
-- **Extra VRAM** is the increase in peak live PyTorch CUDA allocation above the start of the pass or stage. The baseline includes the loaded models and prepared inputs.
+- **Detection CPU** is process CPU time from the start of model loading through the last inference pass. 100% means one full core on average.
+- **Detection RAM** is peak process resident memory (RSS) above the baseline taken after MCAP loading. `pipeline.resource_sample_ms` controls RSS sampling. The increase can be small when the allocator reuses already resident memory.
+- **Detection VRAM** is peak live PyTorch CUDA allocation above that same post-MCAP baseline. It includes all loaded GPU models and inference allocations.
 - **GPU active** is the fraction of a separate traced pass occupied by CUDA kernels, copies, or memory sets from this benchmark process. Overlapping activity counts once. The trace has its own wall time and can be unavailable if PyTorch cannot collect CUDA activity.
 
-The headline memory figures are the largest increases across the timed passes after warmup. Use `--details` on the report printer for the per-stage resource table. Setup and export report wall time only.
+The headline detection figures cover model loading, the first pass, warmup, and timed inference. The MCAP load and Rerun export report wall time only. Use `--details` on the report printer to see the extra memory and CPU use per timed pass and stage, measured from the start of that pass or stage.
 
 Open the output with `rerun runs/<run>/scene.rrd`. The 3D view shows the measured LiDAR with a 0.005 m radius and Boxer's oriented 3D boxes. Each camera tab shows the YOLO overlay, sparse LiDAR depth, and completed SPNet depth.
 

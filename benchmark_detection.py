@@ -262,18 +262,20 @@ def benchmark(scene, yolo_model, spnet_model, boxer_model, config, profiler):
         samples.append(metrics)
         if iteration < settings['iterations'] - 1:
             del results
+    return results, first_pass, samples
 
+
+def summarize_matches(samples):
     camera_summary = {}
-    for name in scene.cameras:
+    for name in samples[0]['cameras']:
         camera_summary[name] = {}
         for stage in samples[0]['cameras'][name]:
             stage_samples = [sample['cameras'][name][stage] for sample in samples]
             camera_summary[name][stage] = summarize(stage_samples)
-    summary = {
+    return {
         'overall': summarize([sample['overall'] for sample in samples]),
         'cameras': camera_summary,
     }
-    return results, {'first_pass': first_pass, 'summary': summary, 'samples': samples}
 
 
 @torch.inference_mode()
@@ -307,24 +309,28 @@ def main():
           flush=True)
     with measure_wall_time(setup, 'Load match'):
         scene = load_scene(config_path, settings, device)
-    with measure_wall_time(setup, 'Load YOLO'):
-        yolo_model = load_yolo(config['yolo'], device, ROOT)
-    with measure_wall_time(setup, 'Load SPNet'):
-        spnet_model = load_spnet(config['spnet'], device, ROOT)
-    with measure_wall_time(setup, 'Load Boxer'):
-        boxer_model = load_boxer(config['boxer'], device, ROOT)
         torch.cuda.synchronize(device)
 
-    print(f"Running first pass, {settings['warmup']} warmups and {settings['iterations']} timed passes",
-          flush=True)
     with Profiler(device, settings['resource_sample_ms']) as profiler:
-        results, metrics = benchmark(scene, yolo_model, spnet_model, boxer_model, config, profiler)
+        detection_started = profiler.start()
+        with profiler.measure('Load YOLO') as (_, setup['Load YOLO']):
+            yolo_model = load_yolo(config['yolo'], device, ROOT)
+        with profiler.measure('Load SPNet') as (_, setup['Load SPNet']):
+            spnet_model = load_spnet(config['spnet'], device, ROOT)
+        with profiler.measure('Load Boxer') as (_, setup['Load Boxer']):
+            boxer_model = load_boxer(config['boxer'], device, ROOT)
 
+        print(f"Running first pass, {settings['warmup']} warmups and {settings['iterations']} timed passes",
+              flush=True)
+        results, first_pass, samples = benchmark(scene, yolo_model, spnet_model, boxer_model, config, profiler)
+        detection_resources = profiler.finish(detection_started, profiler.detection_cuda_peak_bytes)
+
+    summary = summarize_matches(samples)
     print('Tracing pipeline GPU activity in a separate pass', flush=True)
     gpu_activity = measure_gpu_activity(
         profiler,
         lambda: run_match(scene, yolo_model, spnet_model, boxer_model, config, profiler),
-        metrics['summary']['cameras'],
+        summary['cameras'],
     )
 
     now = datetime.now(timezone.utc)
@@ -335,12 +341,13 @@ def main():
         write_scene(directory / 'scene.rrd', scene, results, config['spnet']['max_depth_m'])
 
     report = {
-        'schema_version': 2, 'settings': config, 'match': scene.metadata,
+        'schema_version': 3, 'settings': config, 'match': scene.metadata,
         'gpu': torch.cuda.get_device_name(device), 'torch': str(torch.__version__),
         'cuda': torch.version.cuda, 'upstream_commits': revisions,
         'boxer_depth_source': 'SPNet optical Z in metres, pooled directly into Boxer patches',
         'overall_run': {'wall_ms': (perf_counter() - started) * 1000},
-        'setup_and_export': setup, 'gpu_activity': gpu_activity, **metrics,
+        'setup_and_export': setup, 'detection_resources': detection_resources, 'gpu_activity': gpu_activity,
+        'first_pass': first_pass, 'summary': summary, 'samples': samples,
         'detections': {name: {
             'yolo_2d': result.detections_2d.records(), 'boxer_3d': result.detections_3d,
         } for name, result in results.items()},

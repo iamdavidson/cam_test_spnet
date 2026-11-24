@@ -53,6 +53,7 @@ class Profiler:
         self.process = psutil.Process()
         self.samples = []
         self.pass_cuda_peak_bytes = 0
+        self.detection_cuda_peak_bytes = 0
         self.trace_gpu = False
         self.stop = Event()
 
@@ -113,6 +114,7 @@ class Profiler:
             torch.cuda.synchronize(self.device)
         peak = torch.cuda.max_memory_allocated(self.device)
         self.pass_cuda_peak_bytes = max(self.pass_cuda_peak_bytes, peak)
+        self.detection_cuda_peak_bytes = max(self.detection_cuda_peak_bytes, peak)
         result.update(self.finish(start, peak), stages=timing.report(), notes=timing.notes)
 
 

@@ -49,6 +49,7 @@ def overview(report):
     metrics = report['summary']['overall']
     timed = metrics['wall_ms']
     run = report['overall_run']
+    detection = report.get('detection_resources')
     gpu_activity = report.get('gpu_activity', {}).get('overall', {})
     camera_count = len(report['summary']['cameras'])
     camera_label = 'camera' if camera_count == 1 else 'cameras'
@@ -59,14 +60,23 @@ def overview(report):
     content.append(f' median per match ({camera_count} {camera_label})\n')
     content.append(latency(timed['p95']), style='bright_yellow')
     content.append(' p95 per match\n\n')
-    content.append(memory(peak_increase(metrics, 'extra_vram_mib', 'cuda_above_start_mib')),
-                   style='bright_magenta')
-    content.append(' extra VRAM    ')
-    content.append(memory(peak_increase(metrics, 'extra_ram_mib', 'ram_rss_above_start_mib')),
-                   style='bright_cyan')
-    content.append(' extra RAM\n')
-    cpu_usage = (metrics.get('cpu_percent_one_core') or {}).get('median')
-    content.append(f"CPU {percent(cpu_usage)} of one core    GPU active {percent(gpu_activity.get('active_percent'))}\n")
+    if detection:
+        content.append('Detection · models + inference\n', style='bold')
+        content.append(memory(detection['extra_vram_mib']), style='bright_magenta')
+        content.append(' peak VRAM    ')
+        content.append(memory(detection['extra_ram_mib']), style='bright_cyan')
+        content.append(' peak RAM\n')
+        content.append(f"CPU {percent(detection['cpu_percent_one_core'])} of one core\n")
+    else:
+        content.append(memory(peak_increase(metrics, 'extra_vram_mib', 'cuda_above_start_mib')),
+                       style='bright_magenta')
+        content.append(' extra VRAM    ')
+        content.append(memory(peak_increase(metrics, 'extra_ram_mib', 'ram_rss_above_start_mib')),
+                       style='bright_cyan')
+        content.append(' extra RAM\n')
+        cpu_usage = (metrics.get('cpu_percent_one_core') or {}).get('median')
+        content.append(f"CPU {percent(cpu_usage)} of one core\n")
+    content.append(f"GPU active {percent(gpu_activity.get('active_percent'))} during traced pass\n")
     content.append(f"\n{latency(run['wall_ms'])} total incl. setup and export", style='dim')
     return Panel.fit(
         content, title='YOLO → SPNet → Boxer', title_align='left',
@@ -101,6 +111,21 @@ def camera_table(cameras, counts):
 
 
 def print_details(report, console):
+    detection = report.get('detection_resources')
+    if detection:
+        console.print(Text(
+            f"Detection with model loading  {latency(detection['cpu_ms'])} CPU time"
+            f" over {latency(detection['wall_ms'])} wall time",
+            style='bold',
+        ))
+        timed = report['summary']['overall']
+        console.print(Text(
+            f"Timed passes  {memory(peak_increase(timed, 'extra_vram_mib', 'cuda_above_start_mib'))}"
+            f" extra VRAM  ·  {memory(peak_increase(timed, 'extra_ram_mib', 'ram_rss_above_start_mib'))}"
+            f" extra RAM  ·  CPU {percent(timed['cpu_percent_one_core']['median'])} of one core",
+            style='dim',
+        ))
+
     first_pass = report.get('first_pass', {}).get('overall', {})
     if first_pass:
         console.print(Text(f"First pass  {latency(first_pass['wall_ms'])}", style='bold'))
