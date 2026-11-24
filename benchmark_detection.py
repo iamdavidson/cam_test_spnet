@@ -28,7 +28,8 @@ from detection_models import (
     perform_yolo,
     resized_intrinsics,
 )
-from detection_profiling import Profiler, print_metrics, summarize
+from detection_profiling import Profiler, summarize
+from report_printer import print_report
 from spnet_inputs import lidar_xyz, load_triplet
 from visualize_match import camera_parameters, find_match, image_rgb
 
@@ -274,33 +275,6 @@ def benchmark(scene, yolo_model, spnet_model, boxer_model, config, profiler):
         'cameras': camera_summary,
     }
     return results, {'first_pass': first_pass, 'summary': summary, 'samples': samples}
-
-
-def print_report(report):
-    print(f"\nYOLO → SPNet → Boxer | Match {report['match']['match_id']} | {report['gpu']}")
-    print('CPU % is relative to one core. RAM is process RSS. VRAM is PyTorch allocation.')
-    print('GPU busy % is sampled device-wide. RAM/VRAM in parentheses show growth above stage start.')
-    print('\nSetup and export')
-    for name, metrics in report['setup_and_export'].items():
-        print_metrics(name, metrics)
-    print('\nPipeline')
-    print_metrics('First pass', report['first_pass']['overall'])
-    print_metrics('Timed pass', report['summary']['overall'])
-    for name, stages in report['summary']['cameras'].items():
-        detections = report['detections'][name]
-        print(f"\n{name.title()} | {len(detections['yolo_2d'])} 2D boxes, {len(detections['boxer_3d'])} 3D boxes")
-        for stage, metrics in stages.items():
-            print_metrics(stage, metrics)
-        if not detections['yolo_2d']:
-            print('    Boxer skipped because YOLO returned zero boxes')
-        for box in detections['yolo_2d']:
-            edges = ', '.join(f'{value:.0f}' for value in box['xyxy_pixels'])
-            print(f"    {box['label']}  YOLO {box['score']:.2f}  xyxy ({edges}) px")
-        for box in detections['boxer_3d']:
-            center = ', '.join(f'{value:.2f}' for value in box['center_m'])
-            print(f"    {box['label']}  Boxer {box['boxer_score']:.2f}  center ({center}) m")
-    print('\nOverall invocation')
-    print_metrics('Total', report['overall_run'])
 
 
 @torch.inference_mode()

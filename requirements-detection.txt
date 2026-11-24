@@ -10,3 +10,4 @@ gdown==5.2.0
 ultralytics==8.4.214
 nvidia-ml-py
 psutil
+rich==14.1.0

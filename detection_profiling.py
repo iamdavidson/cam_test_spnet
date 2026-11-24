@@ -141,29 +141,3 @@ def summarize(samples):
             for name, values in stages.items()
         }
     return summary
-
-
-def print_metrics(name, metrics):
-    def value(key, statistic='median'):
-        metric = metrics[key]
-        if metric is None:
-            return 'n/a'
-        return f'{(metric[statistic] if isinstance(metric, dict) else metric):.2f}'
-
-    wall = value('wall_ms')
-    if isinstance(metrics['wall_ms'], dict):
-        wall += f" ms median, {value('wall_ms', 'p95')} ms p95"
-    else:
-        wall += ' ms'
-    print(f"  {name:<17} {wall} | CPU {value('cpu_ms')} ms ({value('cpu_percent_one_core')}%)"
-          f" | RAM {value('ram_rss_peak_mib')} MiB (+{value('ram_rss_above_start_mib')})"
-          f" | VRAM {value('cuda_peak_allocated_mib')} MiB (+{value('cuda_above_start_mib')})"
-          f" | GPU busy % {value('gpu_device_busy_percent')} ({metrics['gpu_samples']} samples)")
-    for clock, stages in metrics.get('stages', {}).items():
-        for stage, elapsed in stages.items():
-            source = 'CUDA stream' if clock == 'cuda_stream_ms' else 'wall'
-            if isinstance(elapsed, dict):
-                detail = f"{elapsed['median']:.2f} ms median, {elapsed['p95']:.2f} ms p95"
-            else:
-                detail = f'{elapsed:.2f} ms'
-            print(f'    {stage:<42} {detail} ({source})')

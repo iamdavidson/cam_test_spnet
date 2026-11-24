@@ -39,7 +39,15 @@ Each camera uses one rectified image coordinate system. YOLO supplies 2D box pro
 
 ## Results
 
-The CLI and `report.json` show the first pass, timed pass median and p95, model stages, and total invocation time. A pass runs all selected cameras once in sequence. The same match is repeated for measurement. Model loading, bag lookup, and Rerun export are listed separately and included in total invocation time through scene export. If YOLO returns no boxes, the report records that Boxer's inference was skipped.
+The benchmark prints a compact terminal summary with median and p95 match latency, peak RAM and VRAM, and per-camera stage times and detection counts. A pass runs all selected cameras once in sequence. The same match is repeated for measurement. `report.json` contains all timing samples, resource measurements, and box coordinates. Total invocation time includes bag lookup, model loading, and Rerun export. If YOLO returns no boxes, Boxer is marked as skipped.
+
+Use the same printer to open one or more saved reports or an older detection benchmark log. For standalone use, install `rich==14.1.0` in your Python environment.
+
+```bash
+python report_printer.py runs/<run>/report.json
+python report_printer.py --details runs/<run>/report.json
+python report_printer.py ~/Downloads/log.log
+```
 
 - **Wall time** includes CPU work and a CUDA synchronization at each method boundary. Internal CUDA timings measure CUDA stream elapsed time. Ultralytics reports its own preprocessing, inference, and postprocessing times.
 - **CPU** is process CPU time. 100% means one full core on average, so CPU usage can exceed 100%.
