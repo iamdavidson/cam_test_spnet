@@ -1,0 +1,38 @@
+# Paths are relative to the repository root, except sensor_config.
+pipeline:
+  sensor_config: config.yaml      # Relative to this YAML.
+  bag_path: null                  # Defaults to the corrected MCAP in sensor_config.
+  match_csv: sync_matches.csv
+  match_id: 130
+  cameras: [left, right]
+  world_frame: base_link          # Must have +Z up for Boxer.
+  image_wh: [960, 540]            # Common rectified image before model-specific resizing.
+  gpu: 0                         # Index after CUDA_VISIBLE_DEVICES.
+  warmup: 3
+  iterations: 10
+  resource_sample_ms: 20
+  runs_dir: runs
+
+yolo:
+  weights: yolo11n.pt             # Official weight name, or a path to local detection weights.
+  image_size: 640
+  confidence: 0.25
+  iou_threshold: 0.7
+  classes: null                  # Optional list of class IDs.
+  max_detections: 50
+  fp16: false
+
+spnet:
+  checkout: .deps/SPNet
+  checkpoint: null               # Defaults to checkpoints/<model>_300.pth.
+  model: Tiny
+  resolution_wh: [512, 288]
+  max_depth_m: 100.0
+
+boxer:
+  checkout: .deps/boxer
+  checkpoint: null               # Defaults to the published checkpoint in checkout/ckpts.
+  image_size: null               # Defaults to the checkpoint's square input size.
+  precision: float32             # Or bfloat16 on supported GPUs.
+  confidence: 0.5
+  max_depth_m: 100.0             # Mask farther pixels before patch pooling.
