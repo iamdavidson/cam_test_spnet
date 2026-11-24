@@ -9,5 +9,5 @@ runs/
 *.mcap
 *.rrd
 *.bundle
-config/spnet.server.yaml
+config/*.server.yaml
 /presentation/
