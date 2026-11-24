@@ -320,7 +320,7 @@ def main():
         results, metrics = benchmark(scene, yolo_model, spnet_model, boxer_model, config, profiler)
 
         now = datetime.now(timezone.utc)
-        run_name = f"{now:%H-%M-%S}_detection_match{settings['match_id']}_{now:%Y-%m-%d}_{uuid4().hex[:8]}"
+        run_name = f"detection_{now:%H-%M-%S}_{now:%Y-%m-%d}_match{settings['match_id']}_{uuid4().hex[:8]}"
         directory = ROOT / Path(settings['runs_dir']).expanduser() / run_name
         directory.mkdir(parents=True)
         with profiler.measure() as (_, export_metrics):

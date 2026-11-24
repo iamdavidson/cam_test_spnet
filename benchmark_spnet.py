@@ -298,7 +298,7 @@ def main():
             (height, width, max_depth, stride, warmup, iterations), device
         )
     now = datetime.now(timezone.utc)
-    run_name = f'{now:%H-%M-%S}_{variant}_{width}x{height}_match{match_id}_{now:%Y-%m-%d}_{uuid4().hex[:8]}'
+    run_name = f'spnet_{now:%H-%M-%S}_{now:%Y-%m-%d}_{variant}_{width}x{height}_match{match_id}_{uuid4().hex[:8]}'
     directory = path(cfg['runs_dir']) / run_name
     directory.mkdir(parents=True)
     checkpoint_sha256 = file_sha256(checkpoint)

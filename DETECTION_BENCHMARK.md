@@ -41,7 +41,7 @@ Each camera uses one rectified image coordinate system. YOLO supplies 2D box pro
 
 The benchmark prints a compact terminal summary with median and p95 match latency, peak RAM and VRAM, and per-camera stage times and detection counts. A pass runs all selected cameras once in sequence. The same match is repeated for measurement. `report.json` contains all timing samples, resource measurements, and box coordinates. Total invocation time includes bag lookup, model loading, and Rerun export. If YOLO returns no boxes, Boxer is marked as skipped.
 
-Run names start with the UTC time, for example `13-25-08_detection_match130_2026-11-24_2af3519f`. To rename existing detection and SPNet run directories on the server, run the following from the repository. Pass your configured runs directory if it differs from `runs/`.
+Run names start with the benchmark name, followed by the UTC time and date, for example `detection_13-25-08_2026-11-24_match130_2af3519f`. To rename existing detection and SPNet run directories on the server, run the following from the repository. Pass your configured runs directory if it differs from `runs/`.
 
 ```bash
 bash scripts/rename_runs.sh --dry-run runs

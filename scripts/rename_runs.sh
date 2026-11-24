@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Rename existing detection and SPNet run directories to put UTC time first.
+# Rename run directories to put the benchmark name before the UTC time and date.
 set -euo pipefail
 shopt -s nullglob
 
@@ -25,23 +25,38 @@ if [[ ! -d $runs_dir ]]; then
     exit 1
 fi
 
-legacy_name='^([0-9]{8})T([0-9]{6})Z_(detection_match[0-9]+|[[:alpha:]]+_[0-9]+x[0-9]+_match[0-9]+)_([0-9a-f]{8})$'
+run_label_pattern='(detection_match[0-9]+|[[:alpha:]]+_[0-9]+x[0-9]+_match[0-9]+)'
+date_first="^([0-9]{8})T([0-9]{6})Z_${run_label_pattern}_([0-9a-f]{8})$"
+time_first="^([0-9]{2}-[0-9]{2}-[0-9]{2})_${run_label_pattern}_([0-9]{4}-[0-9]{2}-[0-9]{2})_([0-9a-f]{8})$"
 found=false
 status=0
 for source in "$runs_dir"/*; do
     name=${source##*/}
-    if [[ ! -d $source || -L $source || ! $name =~ $legacy_name ]]; then
+    if [[ ! -d $source || -L $source ]]; then
+        continue
+    fi
+    if [[ $name =~ $date_first ]]; then
+        date=${BASH_REMATCH[1]}
+        time=${BASH_REMATCH[2]}
+        run_label=${BASH_REMATCH[3]}
+        run_id=${BASH_REMATCH[4]}
+        date="${date:0:4}-${date:4:2}-${date:6:2}"
+        time="${time:0:2}-${time:2:2}-${time:4:2}"
+    elif [[ $name =~ $time_first ]]; then
+        time=${BASH_REMATCH[1]}
+        run_label=${BASH_REMATCH[2]}
+        date=${BASH_REMATCH[3]}
+        run_id=${BASH_REMATCH[4]}
+    else
         continue
     fi
     found=true
 
-    date=${BASH_REMATCH[1]}
-    time=${BASH_REMATCH[2]}
-    run_label=${BASH_REMATCH[3]}
-    run_id=${BASH_REMATCH[4]}
-    date="${date:0:4}-${date:4:2}-${date:6:2}"
-    time="${time:0:2}-${time:2:2}-${time:4:2}"
-    new_name="${time}_${run_label}_${date}_${run_id}"
+    if [[ $run_label == detection_* ]]; then
+        new_name="detection_${time}_${date}_${run_label#detection_}_${run_id}"
+    else
+        new_name="spnet_${time}_${date}_${run_label}_${run_id}"
+    fi
     target="$runs_dir/$new_name"
 
     if [[ -e $target || -L $target ]]; then
