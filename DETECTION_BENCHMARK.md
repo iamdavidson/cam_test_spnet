@@ -39,7 +39,7 @@ Each camera uses one rectified image coordinate system. YOLO supplies 2D box pro
 
 ## Results
 
-The benchmark prints a compact terminal summary with median and p95 match latency, peak RAM and VRAM, and per-camera stage times and detection counts. A pass runs all selected cameras once in sequence. The same match is repeated for measurement. `report.json` contains all timing samples, resource measurements, and box coordinates. Total invocation time includes bag lookup, model loading, and Rerun export. If YOLO returns no boxes, Boxer is marked as skipped.
+The benchmark prints median and p95 match latency, pipeline-only resource usage, and per-camera stage times and detection counts. A pass runs all selected cameras once in sequence. The same match is repeated for measurement. `report.json` contains the first pass, timed samples, resource measurements, and box coordinates. Total invocation time includes bag lookup, model loading, GPU tracing, and Rerun export. If YOLO returns no boxes, Boxer is marked as skipped.
 
 Run names start with the benchmark name, followed by the UTC time and date, for example `detection_13-25-08_2026-11-24_match130_2af3519f`. To rename existing detection and SPNet run directories on the server, run the following from the repository. Pass your configured runs directory if it differs from `runs/`.
 
@@ -57,9 +57,24 @@ python report_printer.py ~/Downloads/log.log
 ```
 
 - **Wall time** includes CPU work and a CUDA synchronization at each method boundary. Internal CUDA timings measure CUDA stream elapsed time. Ultralytics reports its own preprocessing, inference, and postprocessing times.
-- **CPU** is process CPU time. 100% means one full core on average, so CPU usage can exceed 100%.
-- **RAM** is process resident memory (RSS), sampled for each method and reported as the OS high-water mark for the whole run.
-- **VRAM** is peak live PyTorch CUDA allocation. The additional MiB is measured above the stage's starting allocation, which can already contain all three models.
-- **GPU busy** is the sampled NVIDIA device-wide utilization and can be unavailable. The NVML averaging window can span several short stages, so use CUDA timings and incremental allocations for stage-level comparisons.
+- **CPU** is the process CPU time spent during the pass or stage. 100% means one full core on average, so CPU usage can exceed 100%.
+- **Extra RAM** is the largest sampled increase in process resident memory (RSS) above the start of the pass or stage. If the allocator reuses already resident memory, this increase can be zero. `pipeline.resource_sample_ms` controls how often the probe samples RSS.
+- **Extra VRAM** is the increase in peak live PyTorch CUDA allocation above the start of the pass or stage. The baseline includes the loaded models and prepared inputs.
+- **GPU active** is the fraction of a separate traced pass occupied by CUDA kernels, copies, or memory sets from this benchmark process. Overlapping activity counts once. The trace has its own wall time and can be unavailable if PyTorch cannot collect CUDA activity.
+
+The headline memory figures are the largest increases across the timed passes after warmup. Use `--details` on the report printer for the per-stage resource table. Setup and export report wall time only.
 
 Open the output with `rerun runs/<run>/scene.rrd`. The 3D view shows the measured LiDAR with a 0.005 m radius and Boxer's oriented 3D boxes. Each camera tab shows the YOLO overlay, sparse LiDAR depth, and completed SPNet depth.
+
+## Compare 3D detections
+
+Select two or more detection runs by directory or `report.json` path. Shell globs work for selecting several runs by time or match.
+
+```bash
+python scripts/compare_detections.py runs/detection_*_match130_*
+rerun comparison.rrd
+```
+
+For a comparison you want to repeat, save a JSON list of run paths and use `python scripts/compare_detections.py --selection selection.json`. Relative paths in the list are interpreted from the directory containing `selection.json`. Use `--output NAME.rrd` to save another comparison.
+
+Each run has one color for all its boxes, including boxes from both cameras. Toggle individual run layers in the Rerun Blueprint panel. The first run sets the reference frame. Runs of the same sensor capture are aligned through a shared camera pose when their world frames differ. For different captures that already share a fixed world frame, such as the same map origin, pass `--shared-world`.

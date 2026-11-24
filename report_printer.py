@@ -29,14 +29,27 @@ def memory(mib):
         return MISSING
     if mib >= 1024:
         return f'{mib / 1024:.2f} GiB'
+    if 0 < mib < 10:
+        return f'{mib:.2f} MiB'
     return f'{mib:.0f} MiB'
+
+
+def percent(value):
+    return MISSING if value is None else f'{value:.0f}%'
+
+
+def peak_increase(metrics, name, legacy_name):
+    values = metrics.get(name) or metrics.get(legacy_name) or {}
+    return values.get('max', values.get('median'))
 
 
 def overview(report):
     match = report['match']['match_id']
     gpu = report['gpu']
-    timed = report['summary']['overall']['wall_ms']
+    metrics = report['summary']['overall']
+    timed = metrics['wall_ms']
     run = report['overall_run']
+    gpu_activity = report.get('gpu_activity', {}).get('overall', {})
     camera_count = len(report['summary']['cameras'])
     camera_label = 'camera' if camera_count == 1 else 'cameras'
 
@@ -46,10 +59,14 @@ def overview(report):
     content.append(f' median per match ({camera_count} {camera_label})\n')
     content.append(latency(timed['p95']), style='bright_yellow')
     content.append(' p95 per match\n\n')
-    content.append(memory(run['cuda_peak_allocated_mib']), style='bright_magenta')
-    content.append(' peak VRAM    ')
-    content.append(memory(run['ram_rss_peak_mib']), style='bright_cyan')
-    content.append(' peak RAM')
+    content.append(memory(peak_increase(metrics, 'extra_vram_mib', 'cuda_above_start_mib')),
+                   style='bright_magenta')
+    content.append(' extra VRAM    ')
+    content.append(memory(peak_increase(metrics, 'extra_ram_mib', 'ram_rss_above_start_mib')),
+                   style='bright_cyan')
+    content.append(' extra RAM\n')
+    cpu_usage = (metrics.get('cpu_percent_one_core') or {}).get('median')
+    content.append(f"CPU {percent(cpu_usage)} of one core    GPU active {percent(gpu_activity.get('active_percent'))}\n")
     content.append(f"\n{latency(run['wall_ms'])} total incl. setup and export", style='dim')
     return Panel.fit(
         content, title='YOLO → SPNet → Boxer', title_align='left',
@@ -84,9 +101,23 @@ def camera_table(cameras, counts):
 
 
 def print_details(report, console):
-    first_pass = report.get('first_pass', {}).get('overall', {}).get('wall_ms')
-    if first_pass is not None:
-        console.print(Text(f'First pass  {latency(first_pass)}', style='bold'))
+    first_pass = report.get('first_pass', {}).get('overall', {})
+    if first_pass:
+        console.print(Text(f"First pass  {latency(first_pass['wall_ms'])}", style='bold'))
+        if 'extra_ram_mib' in first_pass:
+            console.print(Text(
+                f"  {memory(first_pass['extra_vram_mib'])} extra VRAM"
+                f"    {memory(first_pass['extra_ram_mib'])} extra RAM",
+                style='dim',
+            ))
+
+    gpu = report.get('gpu_activity', {})
+    if 'unavailable' in gpu:
+        console.print(Text(f"Pipeline GPU trace unavailable: {gpu['unavailable']}", style='dim'))
+    if 'overall' in gpu:
+        gpu_ms = latency(gpu['overall']['active_ms'])
+        wall_ms = latency(gpu['overall']['traced_wall_ms'])
+        console.print(Text(f'Pipeline GPU activity  {gpu_ms} over a {wall_ms} traced pass', style='dim'))
 
     setup = report.get('setup_and_export', {})
     if setup:
@@ -96,6 +127,21 @@ def print_details(report, console):
         console.print(table)
 
     for name, stages in report['summary']['cameras'].items():
+        if any('extra_ram_mib' in metrics for metrics in stages.values()):
+            resources = Table(box=box.SIMPLE, header_style='bold cyan')
+            resources.add_column(f'{name.title()} resources')
+            for column in ('CPU', 'GPU active', 'Extra RAM', 'Extra VRAM'):
+                resources.add_column(column, justify='right')
+            for stage, metrics in stages.items():
+                cpu_usage = (metrics.get('cpu_percent_one_core') or {}).get('median')
+                gpu_stage = gpu.get('cameras', {}).get(name, {}).get(stage, {})
+                resources.add_row(
+                    stage, percent(cpu_usage), percent(gpu_stage.get('active_percent')),
+                    memory(peak_increase(metrics, 'extra_ram_mib', 'ram_rss_above_start_mib')),
+                    memory(peak_increase(metrics, 'extra_vram_mib', 'cuda_above_start_mib')),
+                )
+            console.print(resources)
+
         table = Table(box=box.SIMPLE, header_style='bold cyan')
         table.add_column(f'{name.title()} camera')
         table.add_column('Median', justify='right')
@@ -145,7 +191,12 @@ def read_legacy_log(text):
         raise ValueError('Expected a detection report.json or a complete detection benchmark log')
     header = headers[-1]
     text = text[header.end():]
-    timed = re.search(r'^ +Timed pass +([\d.]+) ms median, ([\d.]+) ms p95', text, re.MULTILINE)
+    timed = re.search(
+        r'^ +Timed pass +([\d.]+) ms median, ([\d.]+) ms p95'
+        r' \| CPU [\d.]+ ms \(([\d.]+)%\)'
+        r' \| RAM [\d.]+ MiB \(\+([\d.]+)\) \| VRAM [\d.]+ MiB \(\+([\d.]+)\)',
+        text, re.MULTILINE,
+    )
     total = re.search(
         r'^ +Total +([\d.]+) ms \| CPU [^\n]+? \| RAM ([\d.]+) MiB [^\n]+? \| VRAM ([\d.]+) MiB',
         text, re.MULTILINE,
@@ -161,7 +212,12 @@ def read_legacy_log(text):
             'ram_rss_peak_mib': float(total[2]),
             'cuda_peak_allocated_mib': float(total[3]),
         },
-        'summary': {'overall': {'wall_ms': times(timed[1], timed[2])}, 'cameras': {}},
+        'summary': {'overall': {
+            'wall_ms': times(timed[1], timed[2]),
+            'cpu_percent_one_core': {'median': float(timed[3])},
+            'ram_rss_above_start_mib': {'median': float(timed[4])},
+            'cuda_above_start_mib': {'median': float(timed[5])},
+        }, 'cameras': {}},
         'detection_counts': {},
         'setup_and_export': {},
     }

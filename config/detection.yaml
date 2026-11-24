@@ -10,7 +10,7 @@ pipeline:
   gpu: 0                         # Index after CUDA_VISIBLE_DEVICES.
   warmup: 3
   iterations: 10
-  resource_sample_ms: 20
+  resource_sample_ms: 2          # Process RAM sampling interval during pipeline passes.
   runs_dir: runs
 
 yolo:
