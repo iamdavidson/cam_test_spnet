@@ -10,3 +10,4 @@ runs/
 *.rrd
 *.bundle
 config/spnet.server.yaml
+/presentation/
