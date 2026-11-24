@@ -1,6 +1,6 @@
 # YOLO → SPNet → Boxer benchmark
 
-Run one synchronized LiDAR scan and the selected cameras through the three models on CUDA. Each camera produces independent 2D and 3D detections in a shared frame. The default is match 130, YOLO11n, SPNet Tiny, and the published BoxerNet checkpoint. Boxer was trained for indoor scenes, so these outdoor results measure integration and latency. They have no ground-truth accuracy metrics.
+Run one synchronized LiDAR scan and the selected cameras through the three models on CUDA. Each camera produces independent 2D and 3D detections in a shared frame. The default is match 130, YOLO26n, SPNet Tiny, and the published BoxerNet checkpoint. Boxer was trained for indoor scenes, so these outdoor results measure integration and latency. They have no ground-truth accuracy metrics.
 
 ## Setup
 
@@ -26,6 +26,8 @@ done
 Reuse existing checkouts and weights by setting their paths in [config/detection.yaml](config/detection.yaml). Ultralytics downloads the default YOLO weights on first use. For an offline benchmark, provide a local YOLO checkpoint ahead of time. A first-time weight download counts toward setup time. If OpenCV cannot import `libGL.so.1`, install the distribution's OpenGL runtime library (e.g. `libgl1` on Ubuntu).
 
 Set `pipeline.bag_path` to the corrected MCAP that corresponds to `sync_matches.csv`. `pipeline.world_frame` must exist in TF and have +Z up. The default uses the robot's `base_link` frame, assuming a level robot. Use a gravity-aligned odometry or map frame if available and the robot pitches or rolls.
+
+The benchmark selects YOLO26's NMS-free head with `yolo.nms: false`. Set `yolo.nms: true` to use standard NMS and apply `yolo.iou_threshold`. [Ultralytics detection modes](https://docs.ultralytics.com/guides/end2end-detection)
 
 ```bash
 python benchmark_detection.py --config config/detection.yaml

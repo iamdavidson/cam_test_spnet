@@ -14,10 +14,11 @@ pipeline:
   runs_dir: runs
 
 yolo:
-  weights: yolo11n.pt             # Official weight name, or a path to local detection weights.
+  weights: yolo26n.pt             # Official weight name, or a path to local detection weights.
   image_size: 640
   confidence: 0.25
-  iou_threshold: 0.7
+  nms: false                      # Use YOLO26's end-to-end detection head.
+  iou_threshold: 0.7              # Applies when NMS is enabled.
   classes: null                  # Optional list of class IDs.
   max_detections: 50
   fp16: false

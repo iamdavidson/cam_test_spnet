@@ -76,12 +76,13 @@ def perform_yolo(model, rgb_image, settings, device, timing):
     with timing.stage('RGB to BGR'):
         bgr_image = np.ascontiguousarray(rgb_image[..., ::-1])
 
+    precision = 16 if settings['fp16'] else 32
     with timing.stage('Ultralytics predict', cuda=True):
         result = model.predict(
             bgr_image, device=device, imgsz=settings['image_size'],
-            conf=settings['confidence'], iou=settings['iou_threshold'],
+            conf=settings['confidence'], nms=settings.get('nms'), iou=settings['iou_threshold'],
             classes=settings['classes'], max_det=settings['max_detections'],
-            half=settings['fp16'], rect=True, verbose=False, save=False,
+            quantize=precision, rect=True, verbose=False, save=False,
         )[0]
     for stage, elapsed_ms in result.speed.items():
         timing.host_ms[f'YOLO {stage}'] = elapsed_ms
