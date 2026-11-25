@@ -1,0 +1,76 @@
+# ROS inputs
+localization_mode: 0  # 0 uses PoseStamped, 1 uses Odometry
+pose_topic: /lv_dot/pose
+odom_topic: /mavros/local_position/odom  # Used only in mode 1
+lidar_pointcloud_topic: /velodyne_points
+color_image_topic: /camera/color/image_raw
+depth_image_topic: /camera/depth/image_rect_raw
+
+# Rectified left camera
+image_cols: 512
+image_rows: 288
+color_intrinsics: [308.63153076171875, 308.4086608886719, 261.17987060546875, 146.89634704589844]
+depth_intrinsics: [308.63153076171875, 308.4086608886719, 261.17987060546875, 146.89634704589844]
+depth_scale_factor: 1000
+depth_min_value: 0.5
+depth_max_value: 5.0
+depth_filter_margin: 10
+depth_skip_pixel: 2
+
+# Row-major sensor transforms relative to base_link
+body_to_camera_depth: [
+   0.5372948177876552, -3.0979609730863444e-06,  0.8433944977108481, 0.4,
+  -0.8433944977165377, -1.9735940667287010e-06,  0.5372948177840304, 0.135,
+   5.5511151231257830e-17, -0.9999999999932541, -3.6732051033050440e-06, 0.03,
+   0.0, 0.0, 0.0, 1.0
+]
+body_to_camera_color: [
+   0.5372948177876552, -3.0979609730863444e-06,  0.8433944977108481, 0.4,
+  -0.8433944977165377, -1.9735940667287010e-06,  0.5372948177840304, 0.135,
+   5.5511151231257830e-17, -0.9999999999932541, -3.6732051033050440e-06, 0.03,
+   0.0, 0.0, 0.0, 1.0
+]
+body_to_lidar: [
+  1.0, 0.0, 0.0, 0.10,
+  0.0, 1.0, 0.0, 0.0,
+  0.0, 0.0, 1.0, 0.25,
+  0.0, 0.0, 0.0, 1.0
+]
+
+# Detector update period in seconds
+time_step: 0.033
+
+# Point filtering and clustering
+ground_height: 0.20
+roof_height: 2.00
+voxel_occupied_thresh: 5
+dbscan_min_points_cluster: 20
+dbscan_search_range_epsilon: 0.050
+lidar_DBSCAN_min_points: 10
+lidar_DBSCAN_epsilon: 0.050
+downsample_threshold: 3500
+gaussian_downsample_rate: 6
+filtering_BBox_IOU_threshold: 0.20
+
+# Tracking and data association
+max_match_range: 0.50
+max_size_diff_range: 0.50
+feature_weight: [3.00, 3.00, 0.10, 0.50, 0.50, 0.10, 0.00, 0.00, 0.00]
+history_size: 100
+fix_size_history_threshold: 10
+fix_size_dimension_threshold: 0.40
+kalman_filter_param: [0.250, 0.010, 0.050, 0.050, 0.040, 0.300, 0.600]
+kalman_filter_averaging_frames: 10
+
+# Dynamic object classification
+frame_skip: 5
+dynamic_velocity_threshold: 0.20
+dynamic_voting_threshold: 0.80
+frames_force_dynamic: 10
+frames_force_dynamic_check_range: 30
+dynamic_consistency_threshold: 15
+
+# Object size limits
+target_constrain_size: true
+target_object_size: [0.50, 0.50, 1.50]
+max_object_size: [3.00, 3.00, 2.00]
