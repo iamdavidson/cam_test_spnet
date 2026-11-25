@@ -6,6 +6,7 @@ No ROS node, subscriptions, tf2 listener, or depth estimator required.
 """
 
 import argparse
+from bisect import bisect_left, insort_right
 import csv
 from collections import defaultdict, deque
 from pathlib import Path
@@ -87,7 +88,12 @@ class OfflineTF:
             if is_static:
                 self.static[key] = value
             else:
-                self.dynamic[key].append((header_ns(entry), value))
+                stamp = header_ns(entry)
+                history = self.dynamic[key]
+                if not history or stamp >= history[-1][0]:
+                    history.append((stamp, value))
+                else:
+                    insort_right(history, (stamp, value), key=lambda pair: pair[0])
 
     def finalize(self):
         for values in self.dynamic.values():
@@ -102,8 +108,7 @@ class OfflineTF:
         for key, values in self.dynamic.items():
             if key in edges or not values:
                 continue
-            stamps = np.fromiter((item[0] for item in values), dtype=np.int64)
-            index = int(np.searchsorted(stamps, at_ns))
+            index = bisect_left(values, at_ns, key=lambda pair: pair[0])
             candidates = [i for i in (index - 1, index) if 0 <= i < len(values)]
             selected = min(candidates, key=lambda i: abs(values[i][0] - at_ns))
             delta_ms = abs(values[selected][0] - at_ns) / 1e6

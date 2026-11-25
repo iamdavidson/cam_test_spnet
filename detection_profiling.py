@@ -82,7 +82,7 @@ class Profiler:
         self.pass_cuda_peak_bytes = torch.cuda.memory_allocated(self.device)
         return start
 
-    def finish(self, start, cuda_peak_bytes):
+    def finish(self, start, cuda_peak_bytes, *, memory_baseline=None):
         wall_start, cpu_start, rss_start, cuda_start, sample_start = start
         wall_end, cpu_end = perf_counter(), process_time()
         elapsed = wall_end - wall_start
@@ -90,13 +90,15 @@ class Profiler:
         for timestamp, rss in self.samples[sample_start:]:
             if wall_start <= timestamp <= wall_end:
                 rss_peak = max(rss_peak, rss)
+        if memory_baseline is not None:
+            _, _, rss_start, cuda_start, _ = memory_baseline
         cpu_seconds = cpu_end - cpu_start
         return {
             'wall_ms': elapsed * 1000,
             'cpu_ms': cpu_seconds * 1000,
             'cpu_percent_one_core': cpu_seconds / elapsed * 100,
-            'extra_ram_mib': (rss_peak - rss_start) / 2**20,
-            'extra_vram_mib': (cuda_peak_bytes - cuda_start) / 2**20,
+            'extra_ram_mib': max(0, rss_peak - rss_start) / 2**20,
+            'extra_vram_mib': max(0, cuda_peak_bytes - cuda_start) / 2**20,
         }
 
     def gpu_scope(self, name):

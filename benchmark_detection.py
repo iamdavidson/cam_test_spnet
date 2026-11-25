@@ -145,34 +145,48 @@ def load_scene(config_path, settings, device):
         bag, sensors['topics'], vis['camera_info_topics'], stamps,
         settings['world_frame'], vis['tf_max_age_ms'],
     )
+    metadata = {
+        'match_id': settings['match_id'], 'bag': str(bag), 'match_csv': str(csv),
+        'header_stamps_ns': stamps, 'frames': frames, 'world_frame': world,
+    }
+    return prepare_scene(lidar_xyz(lidar_msg), lidar_pose, cameras, metadata, settings, device)
+
+
+def prepare_scene(lidar, lidar_pose, cameras, metadata, settings, device, calibration_cache=None):
     width, height = settings['image_wh']
     selected = {}
+    if calibration_cache is None:
+        calibration_cache = {}
     for name in settings['cameras']:
         message, info, pose = cameras[name]
         input_wh = int(info.width), int(info.height)
-        intrinsics, distortion = camera_parameters(info, *input_wh)
-        rectified_intrinsics = resized_intrinsics(
-            intrinsics, width / input_wh[0], height / input_wh[1],
-        )
-        maps = cv2.initUndistortRectifyMap(
-            intrinsics, distortion if distortion.size else None, None, rectified_intrinsics,
-            (width, height), cv2.CV_32FC1,
-        )
+        key = (name, input_wh, width, height, info.distortion_model, tuple(info.k), tuple(info.d))
+        if key not in calibration_cache:
+            intrinsics, distortion = camera_parameters(info, *input_wh)
+            rectified_intrinsics = resized_intrinsics(
+                intrinsics, width / input_wh[0], height / input_wh[1],
+            )
+            maps = cv2.initUndistortRectifyMap(
+                intrinsics, distortion if distortion.size else None, None, rectified_intrinsics,
+                (width, height), cv2.CV_32FC1,
+            )
+            calibration_cache[key] = (maps, rectified_intrinsics.astype(np.float32))
+            if len(calibration_cache) > 8:
+                del calibration_cache[next(iter(calibration_cache))]
+        maps, rectified_intrinsics = calibration_cache[key]
         selected[name] = CameraInput(
             message=message,
             maps=maps,
             input_wh=input_wh,
-            intrinsics=rectified_intrinsics.astype(np.float32),
+            intrinsics=rectified_intrinsics,
             world_from_camera=pose.astype(np.float32),
             camera_from_lidar=np.linalg.solve(pose, lidar_pose).astype(np.float32),
         )
-    lidar = lidar_xyz(lidar_msg)
     lidar = lidar[np.isfinite(lidar).all(axis=1)]
     if not len(lidar):
         raise ValueError('The selected LiDAR scan has no finite points')
     metadata = {
-        'match_id': settings['match_id'], 'bag': str(bag), 'match_csv': str(csv),
-        'header_stamps_ns': stamps, 'frames': frames, 'world_frame': world,
+        **metadata,
         'lidar_points': len(lidar),
         'cameras': {name: {
             'intrinsics': camera.intrinsics.tolist(),
@@ -278,6 +292,24 @@ def summarize_matches(samples):
     }
 
 
+def configure_models(config):
+    if not torch.cuda.is_available():
+        raise ValueError('CUDA is unavailable. Run on a CUDA machine with the benchmark dependencies installed.')
+    device = torch.device(f"cuda:{config['pipeline']['gpu']}")
+    torch.cuda.set_device(device)
+    if config['boxer']['precision'] == 'bfloat16' and not torch.cuda.is_bf16_supported():
+        raise ValueError('This GPU does not support Boxer bfloat16')
+    revisions = {}
+    for name, model_file in [('spnet', 'src/networks.py'), ('boxer', 'boxernet/boxernet.py')]:
+        checkout = (ROOT / Path(config[name]['checkout']).expanduser()).resolve()
+        if not (checkout / model_file).is_file():
+            raise ValueError(f'Missing {name} checkout at {checkout}. See DETECTION_BENCHMARK.md.')
+        sys.path.insert(0, str(checkout))
+        revisions[name] = subprocess.check_output(['git', '-C', checkout, 'rev-parse', 'HEAD'],
+                                                  text=True).strip()
+    return device, revisions
+
+
 @torch.inference_mode()
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -288,20 +320,10 @@ def main():
     validate(config)
     settings = config['pipeline']
 
-    if not torch.cuda.is_available():
-        parser.error('CUDA is unavailable. Run on a CUDA machine with the benchmark dependencies installed.')
-    device = torch.device(f"cuda:{settings['gpu']}")
-    torch.cuda.set_device(device)
-    if config['boxer']['precision'] == 'bfloat16' and not torch.cuda.is_bf16_supported():
-        parser.error('This GPU does not support Boxer bfloat16')
-    revisions = {}
-    for name, model_file in [('spnet', 'src/networks.py'), ('boxer', 'boxernet/boxernet.py')]:
-        checkout = (ROOT / Path(config[name]['checkout']).expanduser()).resolve()
-        if not (checkout / model_file).is_file():
-            parser.error(f'Missing {name} checkout at {checkout}. See DETECTION_BENCHMARK.md.')
-        sys.path.insert(0, str(checkout))
-        revisions[name] = subprocess.check_output(['git', '-C', checkout, 'rev-parse', 'HEAD'],
-                                                  text=True).strip()
+    try:
+        device, revisions = configure_models(config)
+    except ValueError as error:
+        parser.error(str(error))
 
     started = perf_counter()
     setup = {}

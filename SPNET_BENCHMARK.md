@@ -66,3 +66,32 @@ Use Rerun 0.43.2 to match the recorder. The recording opens with a 3D view of th
 - **Peak allocation** is PyTorch CUDA allocated memory, including resident model weights. It is measured across each camera's first pass, warmups, and timed passes.
 
 The 100 m default follows the upstream outdoor normalization scale. Depth is optical-axis Z. Zero denotes missing or invalid depth. The recording provides a visual comparison with measured LiDAR, which also supplies the model input.
+
+## Export a ROS 1 bag for LV-DOT
+
+Use the SPNet environment and checkpoint from the setup above. Run this from the
+repository root on the GPU machine. Use a checkout that includes the exporter,
+the corrected MCAP, and its matching `sync_matches.csv`.
+
+```bash
+.venv-spnet/bin/python generate_lv_dot_bag.py \
+  --config config/spnet.yaml \
+  --bag ~/rosbag2_2026_05_12-16_58_33_0_corrected.mcap \
+  --start-match 130 --frames 50 \
+  --output runs/lv_dot_test.bag
+```
+
+The exporter uses the left camera and the Velodyne scans. It writes aligned BGR
+and millimetre-depth images, rectified camera calibration, the original LiDAR
+scans in the selected time span, and poses reconstructed from
+`odom → base_footprint → base_link`. It preserves the sensor capture timestamps
+in the message headers. Set `resolution_wh` in the SPNet config to control the
+shared image size.
+
+Merge the keys from `runs/lv_dot_test.detector.yaml` into LV-DOT's
+`onboard_detector/cfg/detector_param.yaml` so the detector uses the exported
+topics, calibration, and pose mode. Keep the other detector settings from your
+checkout. Mount the output directory at `/data` in the Noetic container. With
+`roscore` running, set `rosparam set /use_sim_time true`, launch
+`roslaunch onboard_detector run_detector.launch`, and replay the bag in a
+second shell with `rosbag play --clock --pause /data/lv_dot_test.bag`.

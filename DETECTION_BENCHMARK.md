@@ -78,3 +78,17 @@ rerun comparison.rrd
 For a comparison you want to repeat, save a JSON list of run paths and use `python scripts/compare_detections.py --selection selection.json`. Relative paths in the list are interpreted from the directory containing `selection.json`. Use `--output NAME.rrd` to save another comparison.
 
 Each run has one color for all its boxes, including boxes from both cameras. Toggle individual run layers in the Rerun Blueprint panel. The first run sets the reference frame. Runs of the same sensor capture are aligned through a shared camera pose when their world frames differ. For different captures that already share a fixed world frame, such as the same map origin, pass `--shared-world`.
+
+## Replay the whole MCAP
+
+Use the same detection config you use for a single match. The sequence benchmark uses all rows in `pipeline.match_csv` and runs each complete match once. The single-match `match_id`, `warmup`, and `iterations` settings do not apply. Models load before replay and the first inference pass is included.
+
+```bash
+python benchmark_sequence.py --config config/detection.server.yaml
+```
+
+At the default rate of 1×, the replay publishes stereo images and LiDAR at their recorded MCAP log times. Header timestamps identify matches. Calibration and TF become available as their messages arrive. The worker waits for the required inputs, keeps accepting incoming matches when inference falls behind, and drains the queue at the end. Temporary packets use disk space in the run directory and are removed after the run. The corrected MCAP is read sequentially and model loading and inference run in a separate process from replay and Rerun publishing.
+
+To watch live, open Rerun with `rerun --bind 127.0.0.1 --port 9876` and add `--viewer` to the benchmark command. When the benchmark runs over SSH, use a reverse tunnel such as `ssh -R 9876:127.0.0.1:9876 user@gpu-server`. The default viewer address is `rerun+http://127.0.0.1:9876/proxy` from the benchmark's host, with an optional custom URL after `--viewer`.
+
+The run saves `scene.rrd` and `report.json`. The **replay** timeline shows inputs when they arrive and detections when the match finishes. The **match** timeline lines up the inputs and outputs for inspection. The timing view shows queue wait, inference, and end-to-end latency. The report also records preparation and result handoff time, arrival lateness, throughput, peak queue length, and incomplete matches. `--rate 0` runs without pacing for throughput checks.

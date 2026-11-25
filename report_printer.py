@@ -183,9 +183,57 @@ def print_details(report, console):
         console.print(table)
 
 
+def print_sequence(report, console, details):
+    sequence = report['sequence']
+    replay = report['replay']
+    resources = report['detection_resources']
+    rate = f"{report['rate']:g}×" if report['rate'] else 'unpaced'
+    headline = Text(
+        f"{sequence['completed_matches']:,} / {replay['expected_matches']:,} matches"
+        f"  ·  {rate} replay\n{report['gpu']}",
+        style='bold',
+    )
+    headline.append(
+        f"\n\n{sequence['throughput_matches_per_second']:.1f} matches/s"
+        f"  ·  {sequence['max_backlog']} peak queue\n"
+    )
+    headline.append(f"{memory(resources['extra_vram_mib'])} peak detection VRAM", style='bright_magenta')
+    headline.append(f"\n{memory(resources['extra_ram_mib'])} peak detection RAM", style='bright_cyan')
+    headline.append(f"\nCPU {percent(resources['cpu_percent_one_core'])} of one core during detection")
+    console.print(Panel.fit(headline, title='MCAP detection replay', border_style='bright_blue'))
+
+    table = Table('Timing', 'Median', 'p95', box=box.SIMPLE, header_style='bold bright_cyan')
+    readings = [
+        ('Arrival lateness', 'arrival_lateness_ms'),
+        ('Queue wait', 'queue_wait_ms'),
+        ('Inference', 'inference_ms'),
+        ('End to end', 'end_to_end_ms'),
+    ]
+    if details:
+        readings += [('Input readiness', 'input_wait_ms'), ('Prepare match', 'prepare_ms'),
+                     ('Result handoff', 'result_handoff_ms')]
+    for label, key in readings:
+        values = sequence[key]
+        if values:
+            table.add_row(label, latency(values['median']), latency(values['p95']))
+    console.print(table)
+    console.print(Text(
+        f"{replay['replay_seconds']:.2f} s replay  ·  {sequence['drain_seconds']:.2f} s backlog drain",
+        style='dim',
+    ))
+    if replay['incomplete_matches']:
+        console.print(f"{len(replay['incomplete_matches'])} incomplete matches. See report.json.", style='yellow')
+    if details:
+        print_details(report, console)
+
+
 def print_report(report, *, console=None, details=False):
     if console is None:
         console = Console()
+
+    if report.get('benchmark') == 'detection_sequence':
+        print_sequence(report, console, details)
+        return
 
     counts = report.get('detection_counts', {}).copy()
     for name, detections in report.get('detections', {}).items():

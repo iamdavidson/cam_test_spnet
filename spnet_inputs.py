@@ -85,8 +85,8 @@ def lidar_xyz(msg):
     )
 
 
-def remap_grid(info, raw_shape, height, width):
-    """Build the static rectification/resize grid using pixel-center coordinates."""
+def rectification_maps(info, raw_shape, height, width):
+    """Build OpenCV rectification maps and the intrinsics of the output image."""
     raw_height, raw_width = raw_shape[:2]
     K, distortion = camera_parameters(info, raw_width, raw_height)
     sx, sy = width / raw_width, height / raw_height
@@ -96,5 +96,12 @@ def remap_grid(info, raw_shape, height, width):
         K, distortion if distortion.size else None, None, output_K,
         (width, height), cv2.CV_32FC1
     )
+    return output_K.astype(np.float32), x, y
+
+
+def remap_grid(info, raw_shape, height, width):
+    """Build the static rectification/resize grid using pixel-center coordinates."""
+    output_K, x, y = rectification_maps(info, raw_shape, height, width)
+    raw_height, raw_width = raw_shape[:2]
     grid = np.stack(((2 * x + 1) / raw_width - 1, (2 * y + 1) / raw_height - 1), axis=-1)
-    return output_K.astype(np.float32), grid
+    return output_K, grid
